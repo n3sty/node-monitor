@@ -14,8 +14,18 @@ const logger = winston.createLogger({
   ]
 })
 
+// Always add console transport in development
 if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.simple()
+    )
+  }))
+} else {
+  // Still show basic console output in production
+  logger.add(new winston.transports.Console({
+    level: 'warn',
     format: winston.format.simple()
   }))
 }
