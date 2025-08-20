@@ -1,12 +1,34 @@
 const Docker = require('dockerode')
 const logger = require('../utils/logger')
+const fs = require('fs')
 
 class DockerMonitor {
   constructor() {
-    this.docker = new Docker({ socketPath: '/var/run/docker.sock' })
+    this.dockerEnabled = process.env.DOCKER_ENABLED !== 'false'
+    this.dockerAvailable = this.dockerEnabled && this.checkDockerAvailability()
+    
+    if (this.dockerAvailable) {
+      this.docker = new Docker({ socketPath: '/var/run/docker.sock' })
+    } else if (!this.dockerEnabled) {
+      logger.info('Docker monitoring disabled via DOCKER_ENABLED=false')
+    }
+  }
+
+  checkDockerAvailability() {
+    try {
+      return fs.existsSync('/var/run/docker.sock')
+    } catch (error) {
+      logger.warn('Docker socket not accessible:', error.message)
+      return false
+    }
   }
 
   async listContainers() {
+    if (!this.dockerAvailable) {
+      logger.warn('Docker not available, returning empty container list')
+      return []
+    }
+    
     try {
       const containers = await this.docker.listContainers({ all: true })
       
@@ -29,6 +51,10 @@ class DockerMonitor {
   }
 
   async getContainerStats(containerId) {
+    if (!this.dockerAvailable) {
+      throw new Error('Docker not available')
+    }
+    
     try {
       const container = this.docker.getContainer(containerId)
       const stats = await container.stats({ stream: false })
@@ -41,6 +67,10 @@ class DockerMonitor {
   }
 
   async getContainerLogs(containerId, options = {}) {
+    if (!this.dockerAvailable) {
+      throw new Error('Docker not available')
+    }
+    
     try {
       const container = this.docker.getContainer(containerId)
       const logs = await container.logs({
