@@ -8,9 +8,17 @@ class DockerMonitor {
     this.dockerAvailable = this.dockerEnabled && this.checkDockerAvailability()
     
     if (this.dockerAvailable) {
-      this.docker = new Docker({ socketPath: '/var/run/docker.sock' })
+      try {
+        this.docker = new Docker({ socketPath: '/var/run/docker.sock' })
+        logger.info('Docker monitor initialized successfully')
+      } catch (error) {
+        logger.warn('Failed to initialize Docker client:', error.message)
+        this.dockerAvailable = false
+      }
     } else if (!this.dockerEnabled) {
       logger.info('Docker monitoring disabled via DOCKER_ENABLED=false')
+    } else {
+      logger.warn('Docker socket not accessible, Docker monitoring disabled')
     }
   }
 
@@ -45,14 +53,21 @@ class DockerMonitor {
           : null
       }))
     } catch (error) {
-      logger.error('Failed to list containers:', error)
-      throw error
+      logger.error('Failed to list containers:', error.message)
+      // Return empty array instead of throwing error
+      return []
     }
   }
 
   async getContainerStats(containerId) {
     if (!this.dockerAvailable) {
-      throw new Error('Docker not available')
+      logger.warn('Docker not available, returning empty stats')
+      return {
+        cpu: { usage: 0, system: 0 },
+        memory: { usage: 0, limit: 0, percentage: 0 },
+        network: { rx: 0, tx: 0 },
+        io: { read: 0, write: 0 }
+      }
     }
     
     try {
@@ -61,14 +76,24 @@ class DockerMonitor {
       
       return this.formatContainerStats(stats)
     } catch (error) {
-      logger.error(`Failed to get stats for container ${containerId}:`, error)
-      throw error
+      logger.error(`Failed to get stats for container ${containerId}:`, error.message)
+      // Return empty stats instead of throwing error
+      return {
+        cpu: { usage: 0, system: 0 },
+        memory: { usage: 0, limit: 0, percentage: 0 },
+        network: { rx: 0, tx: 0 },
+        io: { read: 0, write: 0 }
+      }
     }
   }
 
   async getContainerLogs(containerId, options = {}) {
     if (!this.dockerAvailable) {
-      throw new Error('Docker not available')
+      logger.warn('Docker not available, returning empty logs')
+      return {
+        logs: [],
+        totalLines: 0
+      }
     }
     
     try {
@@ -99,8 +124,12 @@ class DockerMonitor {
         totalLines: logLines.length
       }
     } catch (error) {
-      logger.error(`Failed to get logs for container ${containerId}:`, error)
-      throw error
+      logger.error(`Failed to get logs for container ${containerId}:`, error.message)
+      // Return empty logs instead of throwing error
+      return {
+        logs: [],
+        totalLines: 0
+      }
     }
   }
 

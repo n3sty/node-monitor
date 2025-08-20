@@ -2,6 +2,32 @@ const express = require('express')
 const dockerMonitor = require('../services/docker-monitor')
 const router = express.Router()
 
+router.get('/status', async (req, res, next) => {
+  try {
+    const status = {
+      available: dockerMonitor.dockerAvailable,
+      enabled: process.env.DOCKER_ENABLED !== 'false',
+      socketPath: '/var/run/docker.sock',
+      timestamp: new Date().toISOString()
+    }
+    
+    if (dockerMonitor.dockerAvailable) {
+      try {
+        const containers = await dockerMonitor.listContainers()
+        status.containers = containers.length
+        status.healthy = true
+      } catch (error) {
+        status.healthy = false
+        status.error = error.message
+      }
+    }
+    
+    res.json({ success: true, data: status })
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.get('/containers', async (req, res, next) => {
   try {
     const data = await dockerMonitor.listContainers()

@@ -49,11 +49,16 @@ const errorHandler = (err, req, res, next) => {
     })
   }
 
-  if (err.name === 'Docker error' || err.message?.includes('Docker')) {
+  // Handle Docker-related errors more specifically
+  if (err.name === 'Docker error' || 
+      err.message?.includes('Docker') || 
+      err.message?.includes('docker') ||
+      err.message?.includes('Was there a typo in the url or port') ||
+      err.code === 'ENOENT' && err.message?.includes('docker.sock')) {
     logger.error('Docker service error', { originalError: err.message })
     return res.status(503).json({
-      error: 'Docker service error',
-      message: process.env.NODE_ENV !== 'production' ? err.message : 'Container service unavailable',
+      error: 'Docker service unavailable',
+      message: 'Docker daemon is not accessible or not running',
       timestamp: new Date().toISOString()
     })
   }

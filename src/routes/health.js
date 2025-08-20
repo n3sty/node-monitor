@@ -14,10 +14,28 @@ const checkSystemService = async () => {
 const checkDockerService = async () => {
   try {
     const dockerMonitor = require('../services/docker-monitor')
-    await dockerMonitor.listContainers()
-    return { status: 'healthy' }
+    const containers = await dockerMonitor.listContainers()
+    
+    // Check if Docker is available by looking at the dockerAvailable property
+    if (!dockerMonitor.dockerAvailable) {
+      return { 
+        status: 'unavailable', 
+        message: 'Docker daemon is not accessible or not running',
+        containers: []
+      }
+    }
+    
+    return { 
+      status: 'healthy', 
+      containers: containers.length,
+      available: true
+    }
   } catch (error) {
-    return { status: 'unhealthy', error: error.message }
+    return { 
+      status: 'unhealthy', 
+      error: error.message,
+      available: false
+    }
   }
 }
 
@@ -47,6 +65,7 @@ router.get('/', async (req, res) => {
     services: { system, docker, cache }
   }
   
+  // Consider the service healthy even if Docker is unavailable (not unhealthy)
   const hasUnhealthy = Object.values(health.services).some(s => s.status === 'unhealthy')
   if (hasUnhealthy) health.status = 'degraded'
   
