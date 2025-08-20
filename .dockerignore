@@ -1,0 +1,11 @@
+# Ignore dependencies (they will be installed inside the container)
+node_modules
+
+# Ignore local environment files
+.env
+.env.local
+
+# Ignore Git and other development cruft
+.git
+.gitignore
+README.md
