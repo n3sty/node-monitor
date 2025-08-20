@@ -3,17 +3,27 @@ const logger = require('../utils/logger')
 const requestLoggerMiddleware = (req, res, next) => {
   const start = Date.now()
   const { method, url, ip, headers } = req
+  const requestId = req.id
   
-  // Log request start in development with detailed info
-  if (process.env.NODE_ENV !== 'production') {
-    logger.info('Incoming request', {
-      method,
-      url,
-      ip: ip || req.connection.remoteAddress,
-      userAgent: headers['user-agent'],
+  // Create base request context
+  const requestContext = {
+    requestId,
+    method,
+    url,
+    ip: ip || req.connection?.remoteAddress || 'unknown',
+    userAgent: headers['user-agent']?.substring(0, 100) || 'unknown'
+  }
+
+  // Log request start with appropriate detail level
+  const logLevel = process.env.LOG_LEVEL || 'info'
+  if (logLevel === 'debug' || process.env.NODE_ENV !== 'production') {
+    logger.info('Request started', {
+      ...requestContext,
       contentType: headers['content-type'],
-      authorization: headers.authorization ? '[REDACTED]' : 'none',
-      timestamp: new Date().toISOString()
+      contentLength: headers['content-length'],
+      authorization: headers.authorization ? '[REDACTED]' : undefined,
+      origin: headers.origin,
+      referer: headers.referer
     })
   }
 
@@ -25,20 +35,21 @@ const requestLoggerMiddleware = (req, res, next) => {
     const duration = Date.now() - start
     const { statusCode } = res
     
-    if (process.env.NODE_ENV !== 'production') {
-      // Detailed logging in development
-      logger.info('Request completed', {
-        method,
-        url,
-        statusCode,
-        duration: `${duration}ms`,
-        ip: ip || req.connection.remoteAddress,
-        contentLength: res.get('content-length') || 0,
-        timestamp: new Date().toISOString()
-      })
+    const responseContext = {
+      ...requestContext,
+      statusCode,
+      duration,
+      responseSize: res.get('content-length') || 0
+    }
+
+    // Log based on status code and environment
+    if (statusCode >= 400) {
+      logger.warn('Request completed with error', responseContext)
+    } else if (logLevel === 'debug' || process.env.NODE_ENV !== 'production') {
+      logger.info('Request completed', responseContext)
     } else {
-      // Concise logging in production
-      logger.info(`${method} ${url} ${statusCode} ${duration}ms`)
+      // Concise production logging for successful requests
+      logger.info(`${method} ${url} ${statusCode} ${duration}ms`, { requestId })
     }
 
     // Call the original end function
